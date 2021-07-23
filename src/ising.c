@@ -151,11 +151,6 @@ int parseinput(int argc, char **argv,int *d, int *L, double *T, \
                 abort();
         }
     }
-    if (*d!=2 && *printstate==1)
-    {
-        fprintf(stderr,"States will not be printed as dimension is %d and not 2,\n",*d);
-        *printstate=0;
-    }
     return 0;
 }
 
@@ -847,13 +842,22 @@ int main(int argc, char **argv)
     int ieq=1000; //Number of MCS, by default, that we ignore by belonging to the termalization
     int E,M; //Energy and magnetization
     double R=-1.0;
-    int i;
+    int i, index;
+    int nprog;  // number of MC iterations between printing percentage complete
     int printstate=0; // Whether or not to print the state
     int TypeDyn=0; //0- Glauber, 1- Glauber sequential, 2- Kawasaki, 3- Wolff
     const char *Dynamics[]= {"Glauber single", "Glauber sequential", "Kawasaki (random pairs)", "Wolff", "Kawasaki (neighbour pairs)"};
     
     parseinput(argc,argv,&d,&L,&T,&nmeas,&nmcs,&seed,&ieq,&TypeDyn, &printstate); //Function that read the inputs
-    printf("# d: %d\t L : %d\t nmeas: %d \t ieq: %d \t nmcs: %ld\t T= %f\t Algorithm= %s\n",d,L,nmeas,ieq,nmcs,T,Dynamics[TypeDyn]); //Print the inputs
+    printf("Running with parameters: d: %d\t L : %d\t nmeas: %d \t ieq: %d \t nmcs: %ld\t T= %f\t Algorithm= %s\n",d,L,nmeas,ieq,nmcs,T,Dynamics[TypeDyn]); //Print the inputs
+    makedir("output");
+    FILE *json_fitx=Fopen("output/args.json", "w"); // record cmd args in JSON
+    fprintf(json_fitx, "{\n  \"d\": %d,\n  \"L\": %d,\n  \"nmeas\": %d,\n  \"nmcs\": %ld,\n  \"s\": %d,\n  \"ieq\": %d,\n  \"dyn\": \"%s\"\n}", d, L, T, nmeas, nmcs, seed, ieq, Dynamics[TypeDyn]);
+    Fclose(json_fitx);
+
+    FILE *emr_fitx=Fopen("output/EMR.csv", "w"); // file to record E, M, and R
+    FILE *states_fitx=Fopen("output/states.csv", "w"); // file to record states
+
     N=pow(L,d); //Compute N for a square lattice
     InitRNG(seed);
     IntVector spins=CreateIntVector(N); //Vector of spins
@@ -878,18 +882,27 @@ int main(int argc, char **argv)
     if (TypeDyn != 3)
         Initmyexp(N,veins,T, TypeDyn);
     E+=Metropolis(spins,veins,sequential,bonds,T,ieq,&M,TypeDyn); //Metropolis for the first "ieq" that we ignore
-    printf("# E \t M \t R\n");
+    fprintf(emr_fitx, "E,M,R\n");
+    nprog = (nmcs/nmeas)/10;
     for (i=0;i<nmcs/nmeas;++i)
     {
         E+=Metropolis(spins,veins,sequential,bonds,T,nmeas,&M,TypeDyn); //Metropolis for "nmcs" MCS taking measures each "nmeas"
         R=ClusterRadius(spins,d,L);
-        printf("%d\t%d\t%lf\n",E,M,R);
-        if (printstate==1 && log10(i+1) == round(log10(i+1)))
+        fprintf(emr_fitx, "%d,%d,%lf\n", E, M, R);
+        if (printstate==1)
         {
-            GuardaEstat(i+1,spins,L,d);
-            CorrelRadi(i+1,spins,L,d);
+            for (index=0; index<N-1; ++index)
+            {
+                fprintf(states_fitx, "%d,", spins[index]);
+            }
+            fprintf(states_fitx, "%d\n", spins[N-1]);
         }
+        if ((i+1)%nprog == 0)
+            printf(". . . %d%%\n", 10*(i+1)/nprog);
     }
+    Fclose(emr_fitx);
+    Fclose(states_fitx);
+    printf("Done!\n");
     if (TypeDyn ==1)
         DestroyIntVector(sequential);
     else if (TypeDyn == 3)
