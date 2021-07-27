@@ -852,11 +852,11 @@ int main(int argc, char **argv)
     printf("Running with parameters: d: %d\t L : %d\t nmeas: %d \t ieq: %d \t nmcs: %ld\t T= %f\t Algorithm= %s\n",d,L,nmeas,ieq,nmcs,T,Dynamics[TypeDyn]); //Print the inputs
     makedir("output");
     FILE *json_fitx=Fopen("output/args.json", "w"); // record cmd args in JSON
-    fprintf(json_fitx, "{\n  \"d\": %d,\n  \"L\": %d,\n  \"nmeas\": %d,\n  \"nmcs\": %ld,\n  \"s\": %d,\n  \"ieq\": %d,\n  \"dyn\": \"%s\"\n}", d, L, T, nmeas, nmcs, seed, ieq, Dynamics[TypeDyn]);
+    fprintf(json_fitx, "{\n  \"d\": %d,\n  \"L\": %d,\n  \"T\": %f,\n  \"nmeas\": %d,\n  \"nmcs\": %ld,\n  \"s\": %d,\n  \"ieq\": %d,\n  \"dyn\": \"%s\"\n}", d, L, T, nmeas, nmcs, seed, ieq, Dynamics[TypeDyn]);
     Fclose(json_fitx);
 
     FILE *emr_fitx=Fopen("output/EMR.csv", "w"); // file to record E, M, and R
-    FILE *states_fitx=Fopen("output/states.csv", "w"); // file to record states
+    FILE *states_fitx=Fopen("output/states.txt", "w"); // file to record states
 
     N=pow(L,d); //Compute N for a square lattice
     InitRNG(seed);
@@ -891,11 +891,10 @@ int main(int argc, char **argv)
         fprintf(emr_fitx, "%d,%d,%lf\n", E, M, R);
         if (printstate==1)
         {
-            for (index=0; index<N-1; ++index)
+            for (index=0; index<N; ++index)
             {
-                fprintf(states_fitx, "%d,", spins[index]);
+                fprintf(states_fitx, "%d", (spins[index]+1)/2);
             }
-            fprintf(states_fitx, "%d\n", spins[N-1]);
         }
         if ((i+1)%nprog == 0)
             printf(". . . %d%%\n", 10*(i+1)/nprog);
